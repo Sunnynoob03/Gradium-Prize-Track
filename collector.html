@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ASL Data Collector</title>
+  <style>
+    video, canvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform: scaleX(-1);
+    }
+    #data {
+      position: absolute;
+      top: 500px;
+      width: 100%;
+      height: 200px;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+</head>
+
+<body>
+  <video class="input_video" autoplay></video>
+  <canvas class="output_canvas" width="640" height="480"></canvas>
+
+  <textarea id="data" placeholder="Collected data will appear here..."></textarea>
+
+  <script>
+    const videoElement = document.querySelector('.input_video');
+    const canvasElement = document.querySelector('.output_canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const dataBox = document.getElementById('data');
+
+    let currentLabel = null;
+
+    // ⭐ UPDATED KEY HANDLER (Start/Stop)
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toUpperCase();
+
+      // Stop collecting
+      if (key === "ESCAPE") {
+        currentLabel = null;
+        console.log("Stopped collecting");
+        return;
+      }
+
+      // Start collecting for a letter
+      if (key.length === 1 && key >= 'A' && key <= 'Z') {
+        currentLabel = key;
+        console.log("Collecting for:", currentLabel);
+      }
+    });
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults((results) => {
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      if (results.multiHandLandmarks) {
+        const lm = results.multiHandLandmarks[0];
+        drawConnectors(canvasCtx, lm, HAND_CONNECTIONS);
+        drawLandmarks(canvasCtx, lm);
+
+        if (currentLabel) {
+          const row = lm.map(p => `${p.x},${p.y},${p.z}`).join(',') + ',' + currentLabel + '\n';
+          dataBox.value += row;
+        }
+      }
+
+      canvasCtx.restore();
+    });
+
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({ image: videoElement });
+      },
+      width: 640,
+      height: 480
+    });
+
+    camera.start();
+  </script>
+</body>
+</html>
